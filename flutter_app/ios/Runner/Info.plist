@@ -45,5 +45,11 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+<key>NSCameraUsageDescription</key>
+<string>名刺を撮影するためにカメラを使用します</string>
+
+<key>NSContactsUsageDescription</key>
+<string>名刺情報を連絡先に保存するために使用します</string>
+
 </dict>
 </plist>
