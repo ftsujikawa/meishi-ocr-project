@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:camera/camera.dart';
 import 'pages/camera_page.dart';
 
@@ -6,7 +7,11 @@ late List<CameraDescription> cameras;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  cameras = await availableCameras();
+  try {
+    cameras = await availableCameras();
+  } on MissingPluginException {
+    cameras = <CameraDescription>[];
+  }
   runApp(const MyApp());
 }
 
