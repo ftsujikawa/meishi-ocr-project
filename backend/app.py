@@ -31,7 +31,7 @@ async def ocr_api(file: UploadFile = File(...)):
     img = cv2.imdecode(img_np, cv2.IMREAD_COLOR)
 
     ocr = _get_ocr()
-    result = ocr.ocr(img, cls=True)
+    result = ocr.ocr(img)
 
     blocks = []
     for line in result[0]:

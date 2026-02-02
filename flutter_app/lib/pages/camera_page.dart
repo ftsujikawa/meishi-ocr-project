@@ -2,6 +2,7 @@
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'edit_page.dart';
 
 class CameraPage extends StatefulWidget {
   final List<CameraDescription> cameras;
@@ -15,6 +16,7 @@ class CameraPage extends StatefulWidget {
 class _CameraPageState extends State<CameraPage> {
   CameraController? _controller;
   Future<void>? _initializeFuture;
+  bool _isTakingPicture = false;
 
   @override
   void initState() {
@@ -40,6 +42,11 @@ class _CameraPageState extends State<CameraPage> {
     final initializeFuture = _initializeFuture;
     if (controller == null || initializeFuture == null) return;
 
+    if (_isTakingPicture) return;
+    setState(() {
+      _isTakingPicture = true;
+    });
+
     try {
       await initializeFuture;
       if (!mounted) return;
@@ -49,11 +56,27 @@ class _CameraPageState extends State<CameraPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Saved: ${file.path}')),
       );
+
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => EditPage(imagePath: file.path),
+        ),
+      );
     } on CameraException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Camera error: ${e.description ?? e.code}')),
       );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unexpected error: $e')),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isTakingPicture = false;
+      });
     }
   }
 
@@ -96,7 +119,7 @@ class _CameraPageState extends State<CameraPage> {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _takePicture,
+        onPressed: _isTakingPicture ? null : _takePicture,
         child: const Icon(Icons.camera_alt),
       ),
     );
