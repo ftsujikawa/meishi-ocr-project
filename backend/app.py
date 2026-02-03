@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException, status
 from paddleocr import PaddleOCR
 import cv2, numpy as np, re
 import threading
@@ -26,12 +26,37 @@ async def health():
 
 @app.post("/ocr")
 async def ocr_api(file: UploadFile = File(...)):
+    if file.content_type is None or not file.content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid content type: {file.content_type}",
+        )
     img_bytes = await file.read()
+    if not img_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Empty file",
+        )
     img_np = np.frombuffer(img_bytes, np.uint8)
     img = cv2.imdecode(img_np, cv2.IMREAD_COLOR)
 
+    if img is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid image",
+        )
+
     ocr = _get_ocr()
-    result = ocr.ocr(img)
+    try:
+        result = ocr.ocr(img)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="OCR failed",
+        )
+
+    if not result or not result[0]:
+        return {"blocks": []}
 
     blocks = []
     for line in result[0]:

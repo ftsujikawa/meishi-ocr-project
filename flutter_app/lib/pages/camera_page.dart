@@ -47,6 +47,7 @@ class _CameraPageState extends State<CameraPage> {
     if (controller == null || initializeFuture == null) return;
 
     if (_isTakingPicture) return;
+    if (controller.value.isTakingPicture) return;
     setState(() {
       _isTakingPicture = true;
     });
@@ -97,6 +98,10 @@ class _CameraPageState extends State<CameraPage> {
           builder: (_) => EditPage(imagePath: path, blocks: blocks),
         ),
       );
+      if (!mounted) return;
+      setState(() {
+        _capturedImagePath = null;
+      });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -192,10 +197,7 @@ class _CameraPageState extends State<CameraPage> {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed:
-            (_capturedImagePath != null || _isOcrRunning || _isTakingPicture)
-                ? null
-                : _takePicture,
+        onPressed: (_isOcrRunning || _isTakingPicture) ? null : _takePicture,
         child: const Icon(Icons.camera_alt),
       ),
     );
