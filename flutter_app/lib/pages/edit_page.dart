@@ -749,7 +749,6 @@ class _EditPageState extends State<EditPage> {
       return;
     }
 
-<<<<<<< HEAD
     final contact = Contact();
     final name = card.primaryName;
     if (name != null) {
@@ -763,7 +762,6 @@ class _EditPageState extends State<EditPage> {
           company: company,
           title: card.primaryTitle ?? '',
           department: card.primaryDepartment ?? '',
-=======
     String? company;
     String? affiliation;
     String? title;
@@ -837,12 +835,10 @@ class _EditPageState extends State<EditPage> {
         Organization(
           company: company ?? '',
           title: mergedTitle,
->>>>>>> refs/remotes/origin/main
         ),
       ];
     }
 
-<<<<<<< HEAD
     final phones = <Phone>[];
     for (final p in card.phones) {
       phones.add(Phone(p, label: PhoneLabel.work));
@@ -947,7 +943,6 @@ class _EditPageState extends State<EditPage> {
         v.contains('\r');
     final escaped = v.replaceAll('"', '""');
     return needsQuote ? '"$escaped"' : escaped;
-=======
     contact.phones = [
       for (final p in landlines) Phone(p, label: PhoneLabel.work),
       for (final p in mobiles) Phone(p, label: PhoneLabel.mobile),
@@ -986,14 +981,12 @@ class _EditPageState extends State<EditPage> {
       c.dispose();
     }
     super.dispose();
->>>>>>> refs/remotes/origin/main
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-<<<<<<< HEAD
         title: const Text('OCR結果編集'),
         actions: [
           TextButton(
@@ -1089,7 +1082,6 @@ class _EditPageState extends State<EditPage> {
               ),
             ),
         ],
-=======
         title: const Text('編集'),
       ),
       bottomNavigationBar: SafeArea(
@@ -1251,13 +1243,10 @@ class _EditPageState extends State<EditPage> {
               ),
           ],
         ),
->>>>>>> refs/remotes/origin/main
       ),
     );
   }
 }
-<<<<<<< HEAD
-=======
 
 enum _FieldKind {
   company,
@@ -1272,4 +1261,3 @@ enum _FieldKind {
   postalCode,
   address,
 }
->>>>>>> refs/remotes/origin/main
