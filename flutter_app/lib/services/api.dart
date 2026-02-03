@@ -1,6 +1,8 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:http_parser/http_parser.dart';
 
 Future<List<dynamic>> uploadImage(String path) async {
   final f = File(path);
@@ -12,25 +14,37 @@ Future<List<dynamic>> uploadImage(String path) async {
     throw Exception('Image file is empty: $path');
   }
 
-  final req = http.MultipartRequest(
-    'POST',
-    Uri.parse('https://meishi-ocr-880513430131.asia-northeast1.run.app/ocr'),
-  );
+  final uri =
+      Uri.parse('https://meishi-ocr-880513430131.asia-northeast1.run.app/ocr');
 
+  final lower = path.toLowerCase();
+  final mediaType = lower.endsWith('.png')
+      ? MediaType('image', 'png')
+      : MediaType('image', 'jpeg');
+  final filename = lower.endsWith('.png') ? 'image.png' : 'image.jpg';
+
+  final req = http.MultipartRequest('POST', uri);
   req.headers['Accept'] = 'application/json';
-
   req.files.add(
     await http.MultipartFile.fromPath(
       'file',
       path,
-      filename: 'image.jpg',
+      filename: filename,
+      contentType: mediaType,
     ),
   );
+
   final res = await req.send();
   final body = await res.stream.bytesToString();
-  if (res.statusCode < 200 || res.statusCode >= 300) {
+  debugPrint(
+    'OCR response: status=${res.statusCode}, body=${body.substring(0, body.length > 300 ? 300 : body.length)}',
+  );
+
+  final status = res.statusCode;
+
+  if (status < 200 || status >= 300) {
     throw Exception(
-      'OCR request failed (${res.statusCode}): $body (path=$path, size=$size)',
+      'OCR request failed ($status): $body (path=$path, size=$size)',
     );
   }
 
