@@ -14,14 +14,6 @@ class EditPage extends StatefulWidget {
   final List<dynamic> blocks;
 
   const EditPage({super.key, required this.imagePath, required this.blocks});
-import 'package:flutter/services.dart';
-import 'package:flutter_contacts/flutter_contacts.dart';
-import '../services/api.dart';
-
-class EditPage extends StatefulWidget {
-  final String imagePath;
-
-  const EditPage({super.key, required this.imagePath});
 
   @override
   State<EditPage> createState() => _EditPageState();

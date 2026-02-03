@@ -2,10 +2,9 @@
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'edit_page.dart';
 
 import '../services/api.dart';
-import 'edit_page.dart';
+import 'edit_page_fixed.dart';
 
 class CameraPage extends StatefulWidget {
   final List<CameraDescription> cameras;
@@ -63,12 +62,6 @@ class _CameraPageState extends State<CameraPage> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Saved: ${file.path}')),
-      );
-
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => EditPage(imagePath: file.path),
-        ),
       );
     } on CameraException catch (e) {
       if (!mounted) return;
@@ -199,12 +192,10 @@ class _CameraPageState extends State<CameraPage> {
         },
       ),
       floatingActionButton: FloatingActionButton(
-<<<<<<< HEAD
         onPressed:
-            (_capturedImagePath != null || _isOcrRunning) ? null : _takePicture,
-=======
-        onPressed: _isTakingPicture ? null : _takePicture,
->>>>>>> refs/remotes/origin/main
+            (_capturedImagePath != null || _isOcrRunning || _isTakingPicture)
+                ? null
+                : _takePicture,
         child: const Icon(Icons.camera_alt),
       ),
     );
