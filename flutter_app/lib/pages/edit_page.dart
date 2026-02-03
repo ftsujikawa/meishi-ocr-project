@@ -382,7 +382,7 @@ class _EditPageState extends State<EditPage> {
       ];
     }
 
-    if (otherLines.isNotEmpty) {
+    if (Platform.isIOS && otherLines.isNotEmpty) {
       contact.notes = [Note(otherLines.join('\n'))];
     }
 
