@@ -3,6 +3,9 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 
+import '../services/api.dart';
+import 'edit_page.dart';
+
 class CameraPage extends StatefulWidget {
   final List<CameraDescription> cameras;
 
@@ -15,6 +18,8 @@ class CameraPage extends StatefulWidget {
 class _CameraPageState extends State<CameraPage> {
   CameraController? _controller;
   Future<void>? _initializeFuture;
+  String? _capturedImagePath;
+  bool _isOcrRunning = false;
 
   @override
   void initState() {
@@ -46,9 +51,9 @@ class _CameraPageState extends State<CameraPage> {
       final XFile file = await controller.takePicture();
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Saved: ${file.path}')),
-      );
+      setState(() {
+        _capturedImagePath = file.path;
+      });
     } on CameraException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -57,10 +62,40 @@ class _CameraPageState extends State<CameraPage> {
     }
   }
 
+  Future<void> _runOcr() async {
+    final path = _capturedImagePath;
+    if (path == null) return;
+
+    setState(() {
+      _isOcrRunning = true;
+    });
+
+    try {
+      final blocks = await uploadImage(path);
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => EditPage(imagePath: path, blocks: blocks),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('OCR error: $e')),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isOcrRunning = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = _controller;
     final initializeFuture = _initializeFuture;
+    final capturedImagePath = _capturedImagePath;
 
     if (controller == null || initializeFuture == null) {
       return const Scaffold(
@@ -91,12 +126,55 @@ class _CameraPageState extends State<CameraPage> {
                   ),
                 ),
               ),
+              if (capturedImagePath != null)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    color: Colors.black.withOpacity(0.6),
+                    padding: const EdgeInsets.all(16),
+                    child: SafeArea(
+                      top: false,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: _isOcrRunning ? null : _runOcr,
+                              child: _isOcrRunning
+                                  ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Text('OCR'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          OutlinedButton(
+                            onPressed: _isOcrRunning
+                                ? null
+                                : () {
+                                    setState(() {
+                                      _capturedImagePath = null;
+                                    });
+                                  },
+                            child: const Text('撮り直す'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
             ],
           );
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _takePicture,
+        onPressed:
+            (_capturedImagePath != null || _isOcrRunning) ? null : _takePicture,
         child: const Icon(Icons.camera_alt),
       ),
     );
