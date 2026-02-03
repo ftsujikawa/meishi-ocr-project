@@ -2,6 +2,7 @@
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'edit_page.dart';
 
 import '../services/api.dart';
 import 'edit_page.dart';
@@ -20,6 +21,7 @@ class _CameraPageState extends State<CameraPage> {
   Future<void>? _initializeFuture;
   String? _capturedImagePath;
   bool _isOcrRunning = false;
+  bool _isTakingPicture = false;
 
   @override
   void initState() {
@@ -45,6 +47,11 @@ class _CameraPageState extends State<CameraPage> {
     final initializeFuture = _initializeFuture;
     if (controller == null || initializeFuture == null) return;
 
+    if (_isTakingPicture) return;
+    setState(() {
+      _isTakingPicture = true;
+    });
+
     try {
       await initializeFuture;
       if (!mounted) return;
@@ -54,11 +61,30 @@ class _CameraPageState extends State<CameraPage> {
       setState(() {
         _capturedImagePath = file.path;
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Saved: ${file.path}')),
+      );
+
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => EditPage(imagePath: file.path),
+        ),
+      );
     } on CameraException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Camera error: ${e.description ?? e.code}')),
       );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unexpected error: $e')),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isTakingPicture = false;
+      });
     }
   }
 
@@ -173,8 +199,12 @@ class _CameraPageState extends State<CameraPage> {
         },
       ),
       floatingActionButton: FloatingActionButton(
+<<<<<<< HEAD
         onPressed:
             (_capturedImagePath != null || _isOcrRunning) ? null : _takePicture,
+=======
+        onPressed: _isTakingPicture ? null : _takePicture,
+>>>>>>> refs/remotes/origin/main
         child: const Icon(Icons.camera_alt),
       ),
     );
