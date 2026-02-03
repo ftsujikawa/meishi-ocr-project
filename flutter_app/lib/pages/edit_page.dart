@@ -3,6 +3,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import '../services/api.dart';
 
@@ -78,8 +79,9 @@ class _EditPageState extends State<EditPage> {
     }
 
     if (_titleHints.any((r) => r.hasMatch(t))) return _FieldKind.title;
-    if (_affiliationHints.any((r) => r.hasMatch(t)))
+    if (_affiliationHints.any((r) => r.hasMatch(t))) {
       return _FieldKind.affiliation;
+    }
     if (_companyHints.any((r) => r.hasMatch(t))) return _FieldKind.company;
 
     if (_nameRe.hasMatch(t) && !t.contains(RegExp(r'\d'))) {
@@ -98,6 +100,140 @@ class _EditPageState extends State<EditPage> {
     }
     if (t.startsWith('〒')) return t;
     return '〒$t';
+  }
+
+  String _csvEscape(String v) {
+    final s = v.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    final needsQuote = s.contains(',') || s.contains('"') || s.contains('\n');
+    final escaped = s.replaceAll('"', '""');
+    return needsQuote ? '"$escaped"' : escaped;
+  }
+
+  String _buildCsv() {
+    String? company;
+    String? affiliation;
+    String? title;
+    String? name;
+    String? address;
+    String? postalCode;
+
+    final landlines = <String>[];
+    final mobiles = <String>[];
+    final faxes = <String>[];
+    final emails = <String>[];
+    final urls = <String>[];
+
+    for (var i = 0; i < _controllers.length; i++) {
+      final text = _controllers[i].text.trim();
+      if (text.isEmpty) continue;
+      final kind = (i < _kinds.length) ? _kinds[i] : null;
+
+      switch (kind) {
+        case _FieldKind.company:
+          company ??= text;
+          break;
+        case _FieldKind.affiliation:
+          affiliation ??= text;
+          break;
+        case _FieldKind.title:
+          title ??= text;
+          break;
+        case _FieldKind.name:
+          name ??= text;
+          break;
+        case _FieldKind.landlinePhone:
+          landlines.add(text);
+          break;
+        case _FieldKind.mobilePhone:
+          mobiles.add(text);
+          break;
+        case _FieldKind.fax:
+          faxes.add(text);
+          break;
+        case _FieldKind.email:
+          emails.add(text);
+          break;
+        case _FieldKind.url:
+          urls.add(text);
+          break;
+        case _FieldKind.postalCode:
+          postalCode ??= _normalizePostalCode(text);
+          break;
+        case _FieldKind.address:
+          address ??= text;
+          break;
+        case null:
+          break;
+      }
+    }
+
+    const header = [
+      '会社名',
+      '所属',
+      '役職',
+      '氏名',
+      '固定電話',
+      '携帯電話',
+      'FAX',
+      'E-mail',
+      'URL',
+      '郵便番号',
+      '住所',
+    ];
+
+    final row = [
+      company ?? '',
+      affiliation ?? '',
+      title ?? '',
+      name ?? '',
+      landlines.join(' / '),
+      mobiles.join(' / '),
+      faxes.join(' / '),
+      emails.join(' / '),
+      urls.join(' / '),
+      postalCode ?? '',
+      address ?? '',
+    ];
+
+    return '${header.map(_csvEscape).join(',')}\n'
+        '${row.map(_csvEscape).join(',')}\n';
+  }
+
+  Future<void> _exportCsv() async {
+    final csv = _buildCsv();
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('CSV出力'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: SelectableText(csv),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: csv));
+                if (!context.mounted) return;
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  const SnackBar(content: Text('CSVをコピーしました')),
+                );
+              },
+              child: const Text('コピー'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('閉じる'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   String _labelForKind(_FieldKind? kind) {
@@ -149,84 +285,69 @@ class _EditPageState extends State<EditPage> {
       _FieldKind.address,
     ];
 
+    void setKind(_FieldKind? k) {
+      if (index >= _kinds.length) return;
+      setState(() {
+        _kinds[index] = k;
+        if (index < _kindManuallySet.length) {
+          _kindManuallySet[index] = true;
+        }
+      });
+
+      if (k == _FieldKind.postalCode && index < _controllers.length) {
+        final normalized = _normalizePostalCode(_controllers[index].text);
+        if (_controllers[index].text != normalized) {
+          _controllers[index].text = normalized;
+          _controllers[index].selection = TextSelection.collapsed(
+            offset: normalized.length,
+          );
+        }
+      }
+    }
+
     return Wrap(
-      spacing: 12,
-      runSpacing: 4,
+      spacing: 8,
+      runSpacing: 8,
       children: [
         for (final k in kinds)
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Checkbox(
-                value: current == k,
-                onChanged: (v) {
-                  if (v != true) return;
-                  if (index >= _kinds.length) return;
-                  setState(() {
-                    _kinds[index] = k;
-                    if (index < _kindManuallySet.length) {
-                      _kindManuallySet[index] = true;
-                    }
-                  });
-
-                  if (k == _FieldKind.postalCode &&
-                      index < _controllers.length) {
-                    final normalized =
-                        _normalizePostalCode(_controllers[index].text);
-                    if (_controllers[index].text != normalized) {
-                      _controllers[index].text = normalized;
-                      _controllers[index].selection = TextSelection.collapsed(
-                        offset: normalized.length,
-                      );
-                    }
-                  }
-                },
-                visualDensity: VisualDensity.compact,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              Text(
-                _labelForKind(k),
-                style: Theme.of(context).textTheme.labelMedium,
-              ),
-            ],
+          FilterChip(
+            label: Text(_labelForKind(k)),
+            selected: current == k,
+            onSelected: (selected) {
+              if (!selected) return;
+              setKind(k);
+            },
+            showCheckmark: true,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity.compact,
           ),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Checkbox(
-              value: current == null,
-              onChanged: (v) {
-                if (v != true) return;
-                if (index >= _kinds.length) return;
-                setState(() {
-                  _kinds[index] = null;
-                  if (index < _kindManuallySet.length) {
-                    _kindManuallySet[index] = true;
-                  }
-                });
-              },
-              visualDensity: VisualDensity.compact,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            Text(
-              _labelForKind(null),
-              style: Theme.of(context).textTheme.labelMedium,
-            ),
-          ],
+        FilterChip(
+          label: Text(_labelForKind(null)),
+          selected: current == null,
+          onSelected: (selected) {
+            if (!selected) return;
+            setKind(null);
+          },
+          showCheckmark: true,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
         ),
       ],
     );
   }
 
   Color _tintForConfidence(BuildContext context, double? confidence) {
+    final scheme = Theme.of(context).colorScheme;
     if (confidence == null) {
-      return Theme.of(context).colorScheme.surface;
+      return scheme.surfaceContainerHighest;
     }
 
     final c = confidence.clamp(0.0, 1.0);
-    // Low confidence => reddish, High confidence => greenish
-    final base = Color.lerp(Colors.red, Colors.green, c) ?? Colors.green;
-    return base.withOpacity(0.12);
+    // Low confidence => errorContainer, High confidence => primaryContainer
+    final base =
+        Color.lerp(scheme.errorContainer, scheme.primaryContainer, c) ??
+            scheme.surfaceContainerHighest;
+    return base;
   }
 
   void _setEditableBlocks(List<dynamic> blocks) {
@@ -426,16 +547,45 @@ class _EditPageState extends State<EditPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('編集'),
-        actions: [
-          TextButton(
-            onPressed: _blocks == null ? null : _saveToContacts,
-            child: const Text('電話帳に保存'),
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.spaceBetween,
+            children: [
+              FilledButton.icon(
+                onPressed: _isUploading ? null : _runOcr,
+                icon: _isUploading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.cloud_upload),
+                label: Text(_isUploading ? 'OCR中...' : 'OCR'),
+              ),
+              FilledButton.tonal(
+                onPressed: _blocks == null
+                    ? null
+                    : () {
+                        _exportCsv();
+                      },
+                child: const Text('CSV'),
+              ),
+              FilledButton.tonal(
+                onPressed: _blocks == null ? null : _saveToContacts,
+                child: const Text('電話帳'),
+              ),
+              FilledButton(
+                onPressed: _blocks == null ? null : _done,
+                child: const Text('完了'),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: _blocks == null ? null : _done,
-            child: const Text('完了'),
-          ),
-        ],
+        ),
       ),
       body: SafeArea(
         child: CustomScrollView(
@@ -461,37 +611,15 @@ class _EditPageState extends State<EditPage> {
                 ),
               ),
             ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: _isUploading ? null : _runOcr,
-                        icon: _isUploading
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.cloud_upload),
-                        label: Text(_isUploading ? 'OCR中...' : 'OCRを実行'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
             if (_error != null)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: Text(
                     _error!,
-                    style:
-                        TextStyle(color: Theme.of(context).colorScheme.error),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 ),
               ),
@@ -514,21 +642,19 @@ class _EditPageState extends State<EditPage> {
                         ? null
                         : 'confidence: ${conf.toStringAsFixed(2)}';
 
-                    return DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: _tintForConfidence(context, conf),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Theme.of(context).colorScheme.outlineVariant,
-                        ),
-                      ),
+                    final tint = _tintForConfidence(context, conf);
+
+                    return Card(
+                      color: tint,
+                      elevation: 0,
+                      clipBehavior: Clip.antiAlias,
                       child: Padding(
                         padding: const EdgeInsets.all(12),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.only(bottom: 10),
                               child: _classificationCheckboxesForIndex(
                                 context,
                                 index: index,
@@ -538,6 +664,9 @@ class _EditPageState extends State<EditPage> {
                               controller: _controllers[index],
                               decoration: InputDecoration(
                                 isDense: true,
+                                filled: true,
+                                fillColor:
+                                    Theme.of(context).colorScheme.surface,
                                 border: const OutlineInputBorder(),
                                 labelText: '項目 ${index + 1}',
                                 helperText: subtitle,
