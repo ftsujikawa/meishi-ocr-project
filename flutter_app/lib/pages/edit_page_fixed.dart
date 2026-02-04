@@ -321,6 +321,16 @@ class _EditPageState extends State<EditPage> {
       return;
     }
 
+    String? joinNumbers(List<String> values) {
+      final v = values
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toSet()
+          .toList(growable: false);
+      if (v.isEmpty) return null;
+      return v.join(' / ');
+    }
+
     final otherLines = <String>[];
     for (final item in _items) {
       final text = item.controller.text.trim();
@@ -357,14 +367,17 @@ class _EditPageState extends State<EditPage> {
     }
 
     final phones = <Phone>[];
-    for (final p in card.phones) {
-      phones.add(Phone(p, label: PhoneLabel.work));
+    final workPhone = joinNumbers(card.phones);
+    if (workPhone != null) {
+      phones.add(Phone(workPhone, label: PhoneLabel.work));
     }
-    for (final p in card.mobiles) {
-      phones.add(Phone(p, label: PhoneLabel.mobile));
+    final mobilePhone = joinNumbers(card.mobiles);
+    if (mobilePhone != null) {
+      phones.add(Phone(mobilePhone, label: PhoneLabel.mobile));
     }
-    for (final p in card.faxes) {
-      phones.add(Phone(p, label: PhoneLabel.faxWork));
+    final faxPhone = joinNumbers(card.faxes);
+    if (faxPhone != null) {
+      phones.add(Phone(faxPhone, label: PhoneLabel.faxWork));
     }
     contact.phones = phones;
 
@@ -484,10 +497,9 @@ class _EditPageState extends State<EditPage> {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          AspectRatio(
+      body: OrientationBuilder(
+        builder: (context, orientation) {
+          final image = AspectRatio(
             aspectRatio: 1.6,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
@@ -496,71 +508,109 @@ class _EditPageState extends State<EditPage> {
                 fit: BoxFit.cover,
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          for (var i = 0; i < _items.length; i++)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: _backgroundForConfidence(_items[i].confidence),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.black12),
-                ),
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        Text('#${i + 1}'),
-                        const Spacer(),
-                        if (_items[i].confidence != null)
-                          Text(
-                              'conf: ${_items[i].confidence!.toStringAsFixed(2)}'),
-                      ],
+          );
+
+          final list = ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              if (orientation == Orientation.portrait) ...[
+                image,
+                const SizedBox(height: 16),
+              ],
+              for (var i = 0; i < _items.length; i++)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: _backgroundForConfidence(_items[i].confidence),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.black12),
                     ),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _items[i].controller,
-                      maxLines: null,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    ExpansionTile(
-                      tilePadding: EdgeInsets.zero,
-                      childrenPadding: EdgeInsets.zero,
-                      title: const Text('属性'),
-                      subtitle: _items[i].labels.isEmpty
-                          ? const Text('未選択')
-                          : Text(_items[i].labels.join(' / ')),
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        for (final label in _availableLabels)
-                          CheckboxListTile(
-                            value: _items[i].labels.contains(label),
-                            onChanged: (v) {
-                              setState(() {
-                                if (v == true) {
-                                  _items[i].labels.add(label);
-                                } else {
-                                  _items[i].labels.remove(label);
-                                }
-                              });
-                            },
-                            dense: true,
-                            controlAffinity: ListTileControlAffinity.leading,
-                            title: Text(label),
+                        Row(
+                          children: [
+                            Text('#${i + 1}'),
+                            const Spacer(),
+                            if (_items[i].confidence != null)
+                              Text(
+                                'conf: ${_items[i].confidence!.toStringAsFixed(2)}',
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _items[i].controller,
+                          maxLines: null,
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                            isDense: true,
                           ),
+                        ),
+                        const SizedBox(height: 8),
+                        ExpansionTile(
+                          tilePadding: EdgeInsets.zero,
+                          childrenPadding: EdgeInsets.zero,
+                          title: const Text('属性'),
+                          subtitle: _items[i].labels.isEmpty
+                              ? const Text('未選択')
+                              : Text(_items[i].labels.join(' / ')),
+                          children: [
+                            for (final label in _availableLabels)
+                              CheckboxListTile(
+                                value: _items[i].labels.contains(label),
+                                onChanged: (v) {
+                                  setState(() {
+                                    if (v == true) {
+                                      _items[i].labels.add(label);
+                                    } else {
+                                      _items[i].labels.remove(label);
+                                    }
+                                  });
+                                },
+                                dense: true,
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                                title: Text(label),
+                              ),
+                          ],
+                        ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
+            ],
+          );
+
+          if (orientation == Orientation.portrait) {
+            return list;
+          }
+
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: image,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  flex: 6,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: list,
+                    ),
+                  ),
+                ),
+              ],
             ),
-        ],
+          );
+        },
       ),
     );
   }

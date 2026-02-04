@@ -321,6 +321,16 @@ class _EditPageState extends State<EditPage> {
       return;
     }
 
+    String? joinNumbers(List<String> values) {
+      final v = values
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toSet()
+          .toList(growable: false);
+      if (v.isEmpty) return null;
+      return v.join(' / ');
+    }
+
     final otherLines = <String>[];
     for (final item in _items) {
       final text = item.controller.text.trim();
@@ -356,11 +366,20 @@ class _EditPageState extends State<EditPage> {
       ];
     }
 
-    contact.phones = [
-      for (final p in card.phones) Phone(p, label: PhoneLabel.work),
-      for (final p in card.mobiles) Phone(p, label: PhoneLabel.mobile),
-      for (final p in card.faxes) Phone(p, label: PhoneLabel.faxWork),
-    ];
+    final phones = <Phone>[];
+    final workPhone = joinNumbers(card.phones);
+    if (workPhone != null) {
+      phones.add(Phone(workPhone, label: PhoneLabel.work));
+    }
+    final mobilePhone = joinNumbers(card.mobiles);
+    if (mobilePhone != null) {
+      phones.add(Phone(mobilePhone, label: PhoneLabel.mobile));
+    }
+    final faxPhone = joinNumbers(card.faxes);
+    if (faxPhone != null) {
+      phones.add(Phone(faxPhone, label: PhoneLabel.faxWork));
+    }
+    contact.phones = phones;
 
     contact.emails = [
       for (final e in card.emails) Email(e, label: EmailLabel.work),
