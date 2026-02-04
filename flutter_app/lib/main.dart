@@ -9,7 +9,12 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     cameras = await availableCameras();
-  } on MissingPluginException {
+    debugPrint('availableCameras: ${cameras.length}');
+  } on MissingPluginException catch (e, st) {
+    debugPrint('availableCameras MissingPluginException: $e\n$st');
+    cameras = <CameraDescription>[];
+  } catch (e, st) {
+    debugPrint('availableCameras failed: $e\n$st');
     cameras = <CameraDescription>[];
   }
   runApp(const MyApp());

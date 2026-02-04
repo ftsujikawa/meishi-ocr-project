@@ -21,6 +21,7 @@ class _CameraPageState extends State<CameraPage> {
   String? _capturedImagePath;
   bool _isOcrRunning = false;
   bool _isTakingPicture = false;
+  String? _cameraInitError;
 
   @override
   void initState() {
@@ -32,6 +33,14 @@ class _CameraPageState extends State<CameraPage> {
         enableAudio: false,
       );
       _initializeFuture = _controller!.initialize();
+      _initializeFuture!.catchError((e, st) {
+        if (!mounted) return;
+        setState(() {
+          _cameraInitError = e.toString();
+        });
+      });
+    } else {
+      _cameraInitError = 'カメラが見つかりませんでした';
     }
   }
 
@@ -122,8 +131,17 @@ class _CameraPageState extends State<CameraPage> {
     final capturedImagePath = _capturedImagePath;
 
     if (controller == null || initializeFuture == null) {
-      return const Scaffold(
-        body: Center(child: Text('No camera available')),
+      final msg = _cameraInitError ?? 'No camera available';
+      return Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              '$msg\n\n(iOSシミュレータの場合、カメラが利用できないことがあります。実機でお試しください。)',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
       );
     }
 
