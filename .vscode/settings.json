@@ -1,3 +1,4 @@
 {
-    "cmake.sourceDirectory": "/Users/tsu/src/meishi-ocr-project/flutter_app/linux"
+    "cmake.sourceDirectory": "/Users/tsu/src/meishi-ocr-project/flutter_app/linux",
+    "java.configuration.updateBuildConfiguration": "interactive"
 }
