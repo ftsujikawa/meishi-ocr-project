@@ -383,7 +383,7 @@ class _EditPageState extends State<EditPage> {
       ];
     }
 
-    if (otherLines.isNotEmpty) {
+    if (Platform.isIOS && otherLines.isNotEmpty) {
       contact.notes = [Note(otherLines.join('\n'))];
     }
 
@@ -454,8 +454,10 @@ class _EditPageState extends State<EditPage> {
   }
 
   String _escapeCsv(String v) {
-    final needsQuote =
-        v.contains(',') || v.contains('"') || v.contains('\n') || v.contains('\r');
+    final needsQuote = v.contains(',') ||
+        v.contains('"') ||
+        v.contains('\n') ||
+        v.contains('\r');
     final escaped = v.replaceAll('"', '""');
     return needsQuote ? '"$escaped"' : escaped;
   }
@@ -514,7 +516,8 @@ class _EditPageState extends State<EditPage> {
                         Text('#${i + 1}'),
                         const Spacer(),
                         if (_items[i].confidence != null)
-                          Text('conf: ${_items[i].confidence!.toStringAsFixed(2)}'),
+                          Text(
+                              'conf: ${_items[i].confidence!.toStringAsFixed(2)}'),
                       ],
                     ),
                     const SizedBox(height: 8),
