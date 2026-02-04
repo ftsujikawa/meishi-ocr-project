@@ -27,21 +27,36 @@ class _CameraPageState extends State<CameraPage> {
     final maxW = constraints.maxWidth;
     final maxH = constraints.maxHeight;
 
+    const aspect = 1.6;
     final isPortrait = orientation == Orientation.portrait;
 
-    final guideW = isPortrait ? maxW * 0.86 : maxW * 0.62;
-    final guideH = isPortrait ? maxH * 0.32 : maxH * 0.72;
+    double guideW;
+    double guideH;
+    if (isPortrait) {
+      guideW = maxW * 0.9;
+      guideH = guideW / aspect;
+      final hCap = maxH * 0.5;
+      if (guideH > hCap) {
+        guideH = hCap;
+        guideW = guideH * aspect;
+      }
+    } else {
+      guideH = maxH * 0.8;
+      guideW = guideH * aspect;
+      final wCap = maxW * 0.7;
+      if (guideW > wCap) {
+        guideW = wCap;
+        guideH = guideW / aspect;
+      }
+    }
 
     return SizedBox(
       width: guideW,
       height: guideH,
-      child: AspectRatio(
-        aspectRatio: 1.6,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.white, width: 2),
-            borderRadius: BorderRadius.circular(12),
-          ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.white, width: 2),
+          borderRadius: BorderRadius.circular(12),
         ),
       ),
     );
@@ -170,6 +185,7 @@ class _CameraPageState extends State<CameraPage> {
     }
 
     return Scaffold(
+      backgroundColor: Colors.black,
       body: OrientationBuilder(
         builder: (context, orientation) {
           return FutureBuilder<void>(
@@ -182,90 +198,123 @@ class _CameraPageState extends State<CameraPage> {
               return LayoutBuilder(
                 builder: (context, constraints) {
                   final isPortrait = orientation == Orientation.portrait;
+                  final previewSize = controller.value.previewSize;
+                  final previewW = previewSize == null
+                      ? (isPortrait
+                          ? (1 / controller.value.aspectRatio)
+                          : controller.value.aspectRatio)
+                      : (isPortrait ? previewSize.height : previewSize.width);
+                  final previewH = previewSize == null
+                      ? 1.0
+                      : (isPortrait ? previewSize.width : previewSize.height);
 
                   return Stack(
                     fit: StackFit.expand,
                     children: [
-                      CameraPreview(controller),
+                      Center(
+                        child: ClipRect(
+                          child: FittedBox(
+                            fit: BoxFit.cover,
+                            child: SizedBox(
+                              width: previewW,
+                              height: previewH,
+                              child: CameraPreview(controller),
+                            ),
+                          ),
+                        ),
+                      ),
                       Center(
                         child: _buildGuideFrame(constraints, orientation),
                       ),
                       if (capturedImagePath != null)
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          child: Container(
-                            color: Colors.black.withOpacity(0.6),
-                            padding: const EdgeInsets.all(16),
-                            child: SafeArea(
-                              top: false,
-                              child: isPortrait
-                                  ? Row(
-                                      children: [
-                                        Expanded(
-                                          child: ElevatedButton(
-                                            onPressed:
-                                                _isOcrRunning ? null : _runOcr,
-                                            child: _isOcrRunning
-                                                ? const SizedBox(
-                                                    height: 20,
-                                                    width: 20,
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                    ),
-                                                  )
-                                                : const Text('OCR'),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        OutlinedButton(
-                                          onPressed: _isOcrRunning
-                                              ? null
-                                              : () {
-                                                  setState(() {
-                                                    _capturedImagePath = null;
-                                                  });
-                                                },
-                                          child: const Text('撮り直す'),
-                                        ),
-                                      ],
-                                    )
-                                  : Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        ElevatedButton(
-                                          onPressed:
-                                              _isOcrRunning ? null : _runOcr,
-                                          child: _isOcrRunning
-                                              ? const SizedBox(
-                                                  height: 20,
-                                                  width: 20,
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                    strokeWidth: 2,
-                                                  ),
-                                                )
-                                              : const Text('OCR'),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        OutlinedButton(
-                                          onPressed: _isOcrRunning
-                                              ? null
-                                              : () {
-                                                  setState(() {
-                                                    _capturedImagePath = null;
-                                                  });
-                                                },
-                                          child: const Text('撮り直す'),
-                                        ),
-                                      ],
+                        if (isPortrait)
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              color: Colors.black.withOpacity(0.6),
+                              padding: const EdgeInsets.all(16),
+                              child: SafeArea(
+                                top: false,
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: ElevatedButton(
+                                        onPressed:
+                                            _isOcrRunning ? null : _runOcr,
+                                        child: _isOcrRunning
+                                            ? const SizedBox(
+                                                height: 20,
+                                                width: 20,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                ),
+                                              )
+                                            : const Text('OCR'),
+                                      ),
                                     ),
+                                    const SizedBox(width: 12),
+                                    OutlinedButton(
+                                      onPressed: _isOcrRunning
+                                          ? null
+                                          : () {
+                                              setState(() {
+                                                _capturedImagePath = null;
+                                              });
+                                            },
+                                      child: const Text('撮り直す'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          )
+                        else
+                          Positioned(
+                            top: 0,
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              width: 220,
+                              color: Colors.black.withOpacity(0.6),
+                              padding: const EdgeInsets.all(16),
+                              child: SafeArea(
+                                left: false,
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    ElevatedButton(
+                                      onPressed: _isOcrRunning ? null : _runOcr,
+                                      child: _isOcrRunning
+                                          ? const SizedBox(
+                                              height: 20,
+                                              width: 20,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : const Text('OCR'),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    OutlinedButton(
+                                      onPressed: _isOcrRunning
+                                          ? null
+                                          : () {
+                                              setState(() {
+                                                _capturedImagePath = null;
+                                              });
+                                            },
+                                      child: const Text('撮り直す'),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
-                        ),
                     ],
                   );
                 },

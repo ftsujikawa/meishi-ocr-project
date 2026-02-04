@@ -588,27 +588,46 @@ class _EditPageState extends State<EditPage> {
             return list;
           }
 
-          return Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 4,
-                  child: image,
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  flex: 6,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: list,
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final imageBox = ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Material(
+                  color: Colors.transparent,
+                  child: FittedBox(
+                    fit: BoxFit.contain,
+                    alignment: Alignment.center,
+                    child: SizedBox(
+                      height: constraints.maxHeight,
+                      child: image,
                     ),
                   ),
                 ),
-              ],
-            ),
+              );
+
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 4,
+                      child: imageBox,
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      flex: 6,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: list,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           );
         },
       ),
