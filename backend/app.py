@@ -19,6 +19,11 @@ def _get_ocr():
     return _ocr
 
 
+@app.on_event("startup")
+async def _startup_init_ocr():
+    _get_ocr()
+
+
 @app.get("/")
 async def health():
     return {"status": "ok"}
@@ -26,12 +31,20 @@ async def health():
 
 @app.post("/ocr")
 async def ocr_api(file: UploadFile = File(...)):
+    try:
+        print(f"/ocr request: filename={file.filename}, content_type={file.content_type}")
+    except Exception:
+        pass
     if file.content_type is None or not file.content_type.startswith("image/"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid content type: {file.content_type}",
         )
     img_bytes = await file.read()
+    try:
+        print(f"/ocr file size: {len(img_bytes)}")
+    except Exception:
+        pass
     if not img_bytes:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
