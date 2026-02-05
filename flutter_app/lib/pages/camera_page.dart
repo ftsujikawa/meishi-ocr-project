@@ -150,10 +150,11 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
         SnackBar(content: Text('Unexpected error: $e')),
       );
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isTakingPicture = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isTakingPicture = false;
+        });
+      }
     }
   }
 
@@ -183,10 +184,11 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
         SnackBar(content: Text('OCR error: $e')),
       );
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isOcrRunning = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isOcrRunning = false;
+        });
+      }
     }
   }
 
@@ -262,27 +264,6 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
                       Center(
                         child: _buildGuideFrame(constraints, orientation),
                       ),
-                      Positioned(
-                        left: 8,
-                        top: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.5),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            'mq:$orientation ${mq.size.width.toStringAsFixed(0)}x${mq.size.height.toStringAsFixed(0)}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ),
                       if (capturedImagePath != null)
                         if (isPortrait)
                           Positioned(
@@ -290,7 +271,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
                             right: 0,
                             bottom: 0,
                             child: Container(
-                              color: Colors.black.withOpacity(0.6),
+                              color: Colors.black.withValues(alpha: 0.6),
                               padding: const EdgeInsets.all(16),
                               child: SafeArea(
                                 top: false,
@@ -335,7 +316,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
                             bottom: 0,
                             child: Container(
                               width: 220,
-                              color: Colors.black.withOpacity(0.6),
+                              color: Colors.black.withValues(alpha: 0.6),
                               padding: const EdgeInsets.all(16),
                               child: SafeArea(
                                 left: false,

@@ -216,9 +216,9 @@ class _EditPageState extends State<EditPage> {
 
   Color _backgroundForConfidence(double? c) {
     if (c == null) return Colors.transparent;
-    if (c >= 0.9) return Colors.green.withOpacity(0.15);
-    if (c >= 0.7) return Colors.yellow.withOpacity(0.2);
-    return Colors.red.withOpacity(0.12);
+    if (c >= 0.9) return Colors.green.withValues(alpha: 0.15);
+    if (c >= 0.7) return Colors.yellow.withValues(alpha: 0.2);
+    return Colors.red.withValues(alpha: 0.12);
   }
 
   void _save() {
