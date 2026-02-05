@@ -2,6 +2,7 @@
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../services/api.dart';
 import 'edit_page_fixed.dart';
@@ -15,13 +16,15 @@ class CameraPage extends StatefulWidget {
   State<CameraPage> createState() => _CameraPageState();
 }
 
-class _CameraPageState extends State<CameraPage> {
+class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
   CameraController? _controller;
   Future<void>? _initializeFuture;
   String? _capturedImagePath;
   bool _isOcrRunning = false;
   bool _isTakingPicture = false;
   String? _cameraInitError;
+  Size? _lastSize;
+  Orientation? _lastOrientation;
 
   Widget _buildGuideFrame(BoxConstraints constraints, Orientation orientation) {
     final maxW = constraints.maxWidth;
@@ -65,6 +68,13 @@ class _CameraPageState extends State<CameraPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    SystemChrome.setPreferredOrientations(<DeviceOrientation>[
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
     if (widget.cameras.isNotEmpty) {
       _controller = CameraController(
         widget.cameras.first,
@@ -72,6 +82,14 @@ class _CameraPageState extends State<CameraPage> {
         enableAudio: false,
       );
       _initializeFuture = _controller!.initialize();
+      _initializeFuture!.then((_) {
+        SystemChrome.setPreferredOrientations(<DeviceOrientation>[
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.portraitDown,
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ]);
+      });
       _initializeFuture!.catchError((e, st) {
         if (!mounted) return;
         setState(() {
@@ -85,8 +103,17 @@ class _CameraPageState extends State<CameraPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller?.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    final size = view.physicalSize / view.devicePixelRatio;
+    debugPrint('didChangeMetrics size=$size');
+    super.didChangeMetrics();
   }
 
   Future<void> _takePicture() async {
@@ -169,6 +196,15 @@ class _CameraPageState extends State<CameraPage> {
     final initializeFuture = _initializeFuture;
     final capturedImagePath = _capturedImagePath;
 
+    final mq = MediaQuery.of(context);
+    final orientation = mq.orientation;
+    final size = mq.size;
+    if (_lastOrientation != orientation || _lastSize != size) {
+      _lastOrientation = orientation;
+      _lastSize = size;
+      debugPrint('MediaQuery orientation=$orientation size=$size');
+    }
+
     if (controller == null || initializeFuture == null) {
       final msg = _cameraInitError ?? 'No camera available';
       return Scaffold(
@@ -225,6 +261,27 @@ class _CameraPageState extends State<CameraPage> {
                       ),
                       Center(
                         child: _buildGuideFrame(constraints, orientation),
+                      ),
+                      Positioned(
+                        left: 8,
+                        top: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'mq:$orientation ${mq.size.width.toStringAsFixed(0)}x${mq.size.height.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
                       ),
                       if (capturedImagePath != null)
                         if (isPortrait)
