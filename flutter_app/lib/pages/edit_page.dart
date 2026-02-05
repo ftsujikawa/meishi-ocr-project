@@ -77,11 +77,37 @@ class _EditPageState extends State<EditPage> {
   _EditableBlock _parseBlock(dynamic block) {
     if (block is Map) {
       final map = Map<String, dynamic>.from(block);
-      final text = (map['text'] ?? map['value'] ?? map['raw'] ?? '').toString();
+      String extractText(dynamic v) {
+        if (v == null) return '';
+        if (v is String) return v;
+        if (v is num || v is bool) return v.toString();
+        if (v is Map) {
+          final m = Map<String, dynamic>.from(v);
+          final candidates = <dynamic>[
+            m['text'],
+            m['value'],
+            m['content'],
+            m['raw'],
+            m['string'],
+          ];
+          for (final c in candidates) {
+            final s = extractText(c).trim();
+            if (s.isNotEmpty) return s;
+          }
+        }
+        return v.toString();
+      }
+
+      final text = extractText(map['text'] ?? map['value'] ?? map['raw']);
       final confidence = _toDouble(map['confidence'] ?? map['score']);
 
       final labels = <String>{};
-      final rawLabels = map['labels'] ?? map['attrs'] ?? map['attributes'];
+      final rawLabels = map['labels'] ??
+          map['label'] ??
+          map['attrs'] ??
+          map['attributes'] ??
+          map['types'] ??
+          map['type'];
       if (rawLabels is List) {
         for (final v in rawLabels) {
           final s = v?.toString().trim();
@@ -91,6 +117,11 @@ class _EditPageState extends State<EditPage> {
         for (final s in rawLabels.split(',')) {
           final t = s.trim();
           if (t.isNotEmpty) labels.add(t);
+        }
+      } else if (rawLabels is Map) {
+        for (final v in rawLabels.values) {
+          final s = v?.toString().trim();
+          if (s != null && s.isNotEmpty) labels.add(s);
         }
       }
 

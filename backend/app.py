@@ -1,12 +1,153 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, status
+import os
+
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
+os.environ.setdefault("FLAGS_use_mkldnn", "0")
+
 from paddleocr import PaddleOCR
 import cv2, numpy as np, re
+import json
 import threading
-
+import httpx
+import traceback
 
 app = FastAPI()
 _ocr = None
 _ocr_lock = threading.Lock()
+
+
+async def _openai_extract_card_from_blocks(blocks: list[dict]) -> dict:
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OPENAI_API_KEY is not set",
+        )
+
+    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini"
+
+    lines: list[str] = []
+    for b in blocks:
+        t = (b.get("text") or "").strip()
+        if not t:
+            continue
+        c = b.get("confidence")
+        if isinstance(c, (int, float)):
+            lines.append(f"{t} (conf={float(c):.2f})")
+        else:
+            lines.append(t)
+
+    joined = "\n".join(lines)
+    system = (
+        "You are a careful Japanese business card information extractor. "
+        "Return ONLY valid JSON (no markdown)."
+    )
+    user = (
+        "Extract business card fields from the OCR lines below. "
+        "Do not hallucinate. If unknown, use empty string or empty list. "
+        "Output JSON with this schema:\n"
+        "{\n"
+        "  \"name\": \"\",\n"
+        "  \"company\": \"\",\n"
+        "  \"department\": \"\",\n"
+        "  \"title\": \"\",\n"
+        "  \"phones\": [],\n"
+        "  \"mobiles\": [],\n"
+        "  \"faxes\": [],\n"
+        "  \"emails\": [],\n"
+        "  \"urls\": [],\n"
+        "  \"postal_code\": \"\",\n"
+        "  \"address\": \"\",\n"
+        "  \"other\": []\n"
+        "}\n\n"
+        "OCR lines:\n"
+        f"{joined}"
+    )
+
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "temperature": 0,
+    }
+
+    timeout = httpx.Timeout(45.0, connect=15.0)
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            r = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+    except httpx.HTTPError as e:
+        try:
+            print(f"OpenAI request failed: {type(e).__name__}: {e}")
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"OpenAI request failed: {type(e).__name__}",
+        )
+
+    if r.status_code >= 400:
+        body = (r.text or "").strip()
+        body_snip = body[:1000]
+        try:
+            print(f"OpenAI API error: status={r.status_code}, body={body_snip}")
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"OpenAI API error: {r.status_code} {body_snip}",
+        )
+
+    try:
+        data = r.json()
+    except Exception:
+        body = (r.text or "").strip()
+        body_snip = body[:1000]
+        try:
+            print(f"OpenAI response JSON parse failed: status={r.status_code}, body={body_snip}")
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"OpenAI response JSON parse failed: {body_snip}",
+        )
+
+    content = (
+        ((data.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+    ).strip()
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="OpenAI API returned empty content",
+        )
+
+    try:
+        return json.loads(content)
+    except Exception:
+        m = re.search(r"\{[\s\S]*\}", content)
+        if not m:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"OpenAI output is not JSON: {content[:200]}",
+            )
+        try:
+            return json.loads(m.group(0))
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"OpenAI output JSON parse failed: {content[:200]}",
+            )
 
 
 def _get_ocr():
@@ -17,6 +158,50 @@ def _get_ocr():
         if _ocr is None:
             _ocr = PaddleOCR(use_angle_cls=True, lang="japan")
     return _ocr
+
+
+def _extract_text_score_from_ocr_line(line):
+    if line is None:
+        return None
+
+    if isinstance(line, dict):
+        text = line.get("text") or line.get("label") or line.get("rec_text")
+        score = line.get("score")
+        if score is None:
+            score = line.get("confidence")
+        if text is None:
+            return None
+        return str(text), float(score) if isinstance(score, (int, float)) else None
+
+    if isinstance(line, (list, tuple)):
+        if len(line) == 2:
+            a, b = line
+            if isinstance(b, (list, tuple)) and len(b) >= 1:
+                text = b[0]
+                score = b[1] if len(b) >= 2 else None
+                if isinstance(text, str):
+                    return text, float(score) if isinstance(score, (int, float)) else None
+
+            if isinstance(a, str) and isinstance(b, (int, float)):
+                return a, float(b)
+
+        if len(line) == 3:
+            a, b, c = line
+            if isinstance(b, str) and isinstance(c, (int, float)):
+                return b, float(c)
+            if isinstance(a, str) and isinstance(b, (int, float)):
+                return a, float(b)
+
+        text = None
+        score = None
+        for v in line:
+            if text is None and isinstance(v, str):
+                text = v
+            if score is None and isinstance(v, (int, float)):
+                score = float(v)
+        if text is not None:
+            return text, score
+    return None
 
 
 def _normalize_url_text(text: str) -> str:
@@ -355,7 +540,26 @@ def _preprocess_for_ocr(img: np.ndarray) -> np.ndarray:
 
 @app.on_event("startup")
 async def _startup_init_ocr():
-    _get_ocr()
+    try:
+        import asyncio
+
+        async def _warmup():
+            try:
+                await asyncio.to_thread(_get_ocr)
+            except Exception:
+                try:
+                    print("OCR startup warmup failed:")
+                    print(traceback.format_exc())
+                except Exception:
+                    pass
+
+        asyncio.create_task(_warmup())
+    except Exception:
+        try:
+            print("OCR startup warmup scheduling failed:")
+            print(traceback.format_exc())
+        except Exception:
+            pass
 
 
 @app.get("/")
@@ -364,7 +568,7 @@ async def health():
 
 
 @app.post("/ocr")
-async def ocr_api(file: UploadFile = File(...)):
+async def ocr_api(file: UploadFile = File(...), use_llm: bool = False):
 
     try:
         print(f"/ocr request: filename={file.filename}, content_type={file.content_type}")
@@ -400,6 +604,11 @@ async def ocr_api(file: UploadFile = File(...)):
     try:
         result = ocr.ocr(img)
     except Exception as e:
+        try:
+            print("OCR exception:")
+            print(traceback.format_exc())
+        except Exception:
+            pass
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="OCR failed",
@@ -409,15 +618,49 @@ async def ocr_api(file: UploadFile = File(...)):
         return {"blocks": []}
 
     blocks = []
-    for line in result[0]:
-        box, (text, score) = line
-        t = text
+    lines = result[0] if isinstance(result, (list, tuple)) else result
+    if not isinstance(lines, (list, tuple)):
+        lines = []
+
+    for line in lines:
+        extracted = _extract_text_score_from_ocr_line(line)
+        if not extracted:
+            continue
+        text, score = extracted
+
+        t = (text or "").strip()
+        if not t:
+            continue
         if _looks_like_phone(t):
             t = _normalize_phone_text(t)
         elif re.search(r"\bhttps?\b|\bwww\b", t, flags=re.IGNORECASE):
             t = _normalize_url_text(t)
-        blocks.append({"text": t, "confidence": score})
 
-    return {
-        "blocks": blocks
-    }
+        b = {"text": t}
+        if isinstance(score, (int, float)):
+            b["confidence"] = float(score)
+        blocks.append(b)
+
+    try:
+        head_n = 10
+        print(f"/ocr blocks: count={len(blocks)}")
+        print(
+            "/ocr blocks head: "
+            + json.dumps(blocks[:head_n], ensure_ascii=False)[:8000]
+        )
+    except Exception:
+        pass
+
+    resp = {"blocks": blocks}
+    if use_llm:
+        llm = await _openai_extract_card_from_blocks(blocks)
+        resp["llm"] = llm
+        try:
+            print("/ocr llm: " + json.dumps(llm, ensure_ascii=False)[:8000])
+        except Exception:
+            pass
+        try:
+            print("/ocr resp(head): " + json.dumps(resp, ensure_ascii=False)[:8000])
+        except Exception:
+            pass
+    return resp

@@ -14,8 +14,8 @@ Future<List<dynamic>> uploadImage(String path) async {
     throw Exception('Image file is empty: $path');
   }
 
-  final uri =
-      Uri.parse('https://meishi-ocr-880513430131.asia-northeast1.run.app/ocr');
+  final uri = Uri.parse(
+      'https://meishi-ocr-880513430131.asia-northeast1.run.app/ocr?use_llm=true');
 
   final lower = path.toLowerCase();
   final mediaType = lower.endsWith('.png')
@@ -53,8 +53,35 @@ Future<List<dynamic>> uploadImage(String path) async {
     throw Exception('Unexpected OCR response: $decoded');
   }
 
-  final blocks = decoded['blocks'];
-  if (blocks is! List) {
+  List<dynamic>? extractBlocks(Map<String, dynamic> root) {
+    final direct = root['blocks'];
+    if (direct is List) return direct;
+
+    final result = root['result'];
+    if (result is Map<String, dynamic>) {
+      final nested = result['blocks'];
+      if (nested is List) return nested;
+      final data = result['data'];
+      if (data is Map<String, dynamic>) {
+        final nested2 = data['blocks'];
+        if (nested2 is List) return nested2;
+      }
+    }
+
+    final data = root['data'];
+    if (data is Map<String, dynamic>) {
+      final nested = data['blocks'];
+      if (nested is List) return nested;
+    }
+
+    final items = root['items'];
+    if (items is List) return items;
+
+    return null;
+  }
+
+  final blocks = extractBlocks(decoded);
+  if (blocks == null) {
     throw Exception('Missing/invalid blocks in OCR response: $decoded');
   }
 
