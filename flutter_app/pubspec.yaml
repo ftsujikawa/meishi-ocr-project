@@ -11,6 +11,7 @@ dependencies:
   camera_macos: ^0.0.9
   http: ^1.2.0
   http_parser: ^4.0.2
+  flutter_svg: ^2.0.10
   image_picker: ^1.0.7
   permission_handler: ^11.3.0
   flutter_contacts: ^1.1.9+2
@@ -21,6 +22,15 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.1
+  flutter_launcher_icons: ^0.14.2
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/icons/
+
+flutter_icons:
+  ios: true
+  android: false
+  image_path_ios: assets/icons/app_icon_ios_1024.png
+  remove_alpha_ios: true
