@@ -16,15 +16,13 @@ class CameraPage extends StatefulWidget {
   State<CameraPage> createState() => _CameraPageState();
 }
 
-class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
+class _CameraPageState extends State<CameraPage> {
   CameraController? _controller;
   Future<void>? _initializeFuture;
   String? _capturedImagePath;
   bool _isOcrRunning = false;
   bool _isTakingPicture = false;
   String? _cameraInitError;
-  Size? _lastSize;
-  Orientation? _lastOrientation;
 
   Widget _buildGuideFrame(BoxConstraints constraints, Orientation orientation) {
     final maxW = constraints.maxWidth;
@@ -68,7 +66,6 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     SystemChrome.setPreferredOrientations(<DeviceOrientation>[
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
@@ -103,17 +100,8 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _controller?.dispose();
     super.dispose();
-  }
-
-  @override
-  void didChangeMetrics() {
-    final view = WidgetsBinding.instance.platformDispatcher.views.first;
-    final size = view.physicalSize / view.devicePixelRatio;
-    debugPrint('didChangeMetrics size=$size');
-    super.didChangeMetrics();
   }
 
   Future<void> _takePicture() async {
@@ -197,15 +185,6 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
     final controller = _controller;
     final initializeFuture = _initializeFuture;
     final capturedImagePath = _capturedImagePath;
-
-    final mq = MediaQuery.of(context);
-    final orientation = mq.orientation;
-    final size = mq.size;
-    if (_lastOrientation != orientation || _lastSize != size) {
-      _lastOrientation = orientation;
-      _lastSize = size;
-      debugPrint('MediaQuery orientation=$orientation size=$size');
-    }
 
     if (controller == null || initializeFuture == null) {
       final msg = _cameraInitError ?? 'No camera available';
