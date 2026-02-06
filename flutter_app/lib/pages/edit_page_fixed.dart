@@ -66,6 +66,86 @@ class _EditPageState extends State<EditPage> {
 
   late final List<_EditableBlock> _items;
 
+  Map<String, dynamic>? _buildLlmFromEditedBlocks() {
+    final Map<String, dynamic> llm = <String, dynamic>{
+      'name': '',
+      'company': '',
+      'department': '',
+      'title': '',
+      'phones': <String>[],
+      'mobiles': <String>[],
+      'faxes': <String>[],
+      'emails': <String>[],
+      'urls': <String>[],
+      'postal_code': '',
+      'address': '',
+      'other': <String>[],
+    };
+
+    bool hasAny = false;
+
+    void setScalarIfEmpty(String key, String value) {
+      final s = value.trim();
+      if (s.isEmpty) return;
+      final cur = (llm[key] ?? '').toString().trim();
+      if (cur.isEmpty) {
+        llm[key] = s;
+        hasAny = true;
+      }
+    }
+
+    void addToList(String key, String value) {
+      final s = value.trim();
+      if (s.isEmpty) return;
+      final list = (llm[key] as List).cast<String>();
+      if (!list.contains(s)) {
+        list.add(s);
+      }
+      hasAny = true;
+    }
+
+    bool isLlmSource(_EditableBlock item) {
+      final raw = item.raw;
+      if (raw == null) return false;
+      return (raw['source']?.toString() ?? '') == 'llm';
+    }
+
+    for (final item in _items) {
+      if (!isLlmSource(item)) continue;
+      final text = item.controller.text;
+      if (text.trim().isEmpty) continue;
+      final labels = item.labels;
+
+      if (labels.contains('氏名')) {
+        setScalarIfEmpty('name', text);
+      } else if (labels.contains('会社')) {
+        setScalarIfEmpty('company', text);
+      } else if (labels.contains('部署')) {
+        setScalarIfEmpty('department', text);
+      } else if (labels.contains('役職')) {
+        setScalarIfEmpty('title', text);
+      } else if (labels.contains('郵便番号')) {
+        setScalarIfEmpty('postal_code', text);
+      } else if (labels.contains('住所')) {
+        setScalarIfEmpty('address', text);
+      } else if (labels.contains('電話')) {
+        addToList('phones', text);
+      } else if (labels.contains('携帯')) {
+        addToList('mobiles', text);
+      } else if (labels.contains('FAX')) {
+        addToList('faxes', text);
+      } else if (labels.contains('メール')) {
+        addToList('emails', text);
+      } else if (labels.contains('URL')) {
+        addToList('urls', text);
+      } else {
+        addToList('other', text);
+      }
+    }
+
+    return hasAny ? llm : null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -229,14 +309,23 @@ class _EditPageState extends State<EditPage> {
 
   void _save() {
     final edited = _items.map((e) => e.toJson()).toList(growable: false);
-    Navigator.of(context).pop(edited);
+    final llm = _buildLlmFromEditedBlocks() ??
+        (widget.llm is Map
+            ? Map<String, dynamic>.from(widget.llm as Map)
+            : null);
+    Navigator.of(context).pop(<String, dynamic>{
+      'blocks': edited,
+      'llm': llm,
+    });
   }
 
   CardData _extractCard() {
     final data = CardData();
 
-    final llmMap =
-        widget.llm is Map ? Map<String, dynamic>.from(widget.llm as Map) : null;
+    final llmMap = _buildLlmFromEditedBlocks() ??
+        (widget.llm is Map
+            ? Map<String, dynamic>.from(widget.llm as Map)
+            : null);
 
     bool hasLlmString(String key) {
       final v = llmMap?[key];

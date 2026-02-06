@@ -161,11 +161,15 @@ class _CameraPageState extends State<CameraPage> {
           rawBlocks is List ? List<dynamic>.from(rawBlocks) : const <dynamic>[];
       final dynamic llm = result['llm'];
       if (!mounted) return;
-      await Navigator.of(context).push(
+      final edited = await Navigator.of(context).push<dynamic>(
         MaterialPageRoute(
           builder: (_) => EditPage(imagePath: path, blocks: blocks, llm: llm),
         ),
       );
+      if (edited is Map) {
+        // edited['blocks'], edited['llm'] can be used if needed.
+        // Keep behavior as-is for now.
+      }
       if (!mounted) return;
       setState(() {
         _capturedImagePath = null;
