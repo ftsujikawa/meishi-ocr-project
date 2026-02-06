@@ -12,8 +12,14 @@ import '_card_data.dart';
 class EditPage extends StatefulWidget {
   final String imagePath;
   final List<dynamic> blocks;
+  final dynamic llm;
 
-  const EditPage({super.key, required this.imagePath, required this.blocks});
+  const EditPage({
+    super.key,
+    required this.imagePath,
+    required this.blocks,
+    this.llm,
+  });
 
   @override
   State<EditPage> createState() => _EditPageState();
@@ -229,47 +235,134 @@ class _EditPageState extends State<EditPage> {
   CardData _extractCard() {
     final data = CardData();
 
+    final llmMap =
+        widget.llm is Map ? Map<String, dynamic>.from(widget.llm as Map) : null;
+
+    bool hasLlmString(String key) {
+      final v = llmMap?[key];
+      return v is String && v.trim().isNotEmpty;
+    }
+
+    bool hasLlmList(String key) {
+      final v = llmMap?[key];
+      if (v is List) {
+        return v.any((e) => (e?.toString().trim() ?? '').isNotEmpty);
+      }
+      return false;
+    }
+
+    void addLlmStringTo(List<String> target, String key) {
+      final v = llmMap?[key];
+      if (v is String) {
+        final s = v.trim();
+        if (s.isNotEmpty) target.add(s);
+      }
+    }
+
+    void addLlmListTo(List<String> target, String key) {
+      final v = llmMap?[key];
+      if (v is List) {
+        for (final e in v) {
+          final s = e?.toString().trim();
+          if (s != null && s.isNotEmpty) target.add(s);
+        }
+      } else if (v is String) {
+        final s = v.trim();
+        if (s.isNotEmpty) target.add(s);
+      }
+    }
+
+    // LLM優先で埋める
+    addLlmStringTo(data.names, 'name');
+    addLlmStringTo(data.companies, 'company');
+    addLlmStringTo(data.departments, 'department');
+    addLlmStringTo(data.titles, 'title');
+    addLlmListTo(data.phones, 'phones');
+    addLlmListTo(data.mobiles, 'mobiles');
+    addLlmListTo(data.faxes, 'faxes');
+    addLlmListTo(data.emails, 'emails');
+    addLlmListTo(data.urls, 'urls');
+    addLlmStringTo(data.postalCodes, 'postal_code');
+    addLlmStringTo(data.addresses, 'address');
+
     for (final item in _items) {
       final text = item.controller.text.trim();
       if (text.isEmpty) continue;
 
       final labels = item.labels;
-      if (labels.contains('氏名')) {
+      if (!hasLlmString('name') && labels.contains('氏名')) {
         data.names.add(text);
       }
-      if (labels.contains('会社')) {
+      if (!hasLlmString('company') && labels.contains('会社')) {
         data.companies.add(text);
       }
-      if (labels.contains('部署')) {
+      if (!hasLlmString('department') && labels.contains('部署')) {
         data.departments.add(text);
       }
-      if (labels.contains('役職')) {
+      if (!hasLlmString('title') && labels.contains('役職')) {
         data.titles.add(text);
       }
-      if (labels.contains('メール')) {
+      if (!hasLlmList('emails') && labels.contains('メール')) {
         data.emails.addAll(_extractEmails(text));
       }
-      if (labels.contains('URL')) {
+      if (!hasLlmList('urls') && labels.contains('URL')) {
         data.urls.addAll(_extractUrls(text));
       }
-      if (labels.contains('郵便番号')) {
+      if (!hasLlmString('postal_code') && labels.contains('郵便番号')) {
         final p = _extractPostal(text);
         if (p != null) data.postalCodes.add(p);
       }
-      if (labels.contains('住所')) {
+      if (!hasLlmString('address') && labels.contains('住所')) {
         data.addresses.add(text);
       }
 
-      if (labels.contains('電話')) {
+      if (!hasLlmList('phones') && labels.contains('電話')) {
         data.phones.addAll(_extractPhones(text));
       }
-      if (labels.contains('携帯')) {
+      if (!hasLlmList('mobiles') && labels.contains('携帯')) {
         data.mobiles.addAll(_extractPhones(text));
       }
-      if (labels.contains('FAX')) {
+      if (!hasLlmList('faxes') && labels.contains('FAX')) {
         data.faxes.addAll(_extractPhones(text));
       }
     }
+
+    // 重複排除（同属性内）
+    data.names
+      ..retainWhere((e) => e.trim().isNotEmpty)
+      ..replaceRange(0, data.names.length, data.names.toSet().toList());
+    data.companies
+      ..retainWhere((e) => e.trim().isNotEmpty)
+      ..replaceRange(0, data.companies.length, data.companies.toSet().toList());
+    data.departments
+      ..retainWhere((e) => e.trim().isNotEmpty)
+      ..replaceRange(
+          0, data.departments.length, data.departments.toSet().toList());
+    data.titles
+      ..retainWhere((e) => e.trim().isNotEmpty)
+      ..replaceRange(0, data.titles.length, data.titles.toSet().toList());
+    data.phones
+      ..retainWhere((e) => e.trim().isNotEmpty)
+      ..replaceRange(0, data.phones.length, data.phones.toSet().toList());
+    data.mobiles
+      ..retainWhere((e) => e.trim().isNotEmpty)
+      ..replaceRange(0, data.mobiles.length, data.mobiles.toSet().toList());
+    data.faxes
+      ..retainWhere((e) => e.trim().isNotEmpty)
+      ..replaceRange(0, data.faxes.length, data.faxes.toSet().toList());
+    data.emails
+      ..retainWhere((e) => e.trim().isNotEmpty)
+      ..replaceRange(0, data.emails.length, data.emails.toSet().toList());
+    data.urls
+      ..retainWhere((e) => e.trim().isNotEmpty)
+      ..replaceRange(0, data.urls.length, data.urls.toSet().toList());
+    data.postalCodes
+      ..retainWhere((e) => e.trim().isNotEmpty)
+      ..replaceRange(
+          0, data.postalCodes.length, data.postalCodes.toSet().toList());
+    data.addresses
+      ..retainWhere((e) => e.trim().isNotEmpty)
+      ..replaceRange(0, data.addresses.length, data.addresses.toSet().toList());
 
     return data;
   }

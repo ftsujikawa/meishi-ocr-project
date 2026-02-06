@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http_parser/http_parser.dart';
 
-Future<List<dynamic>> uploadImage(String path) async {
+Future<Map<String, dynamic>> uploadImage(String path) async {
   final f = File(path);
   if (!await f.exists()) {
     throw Exception('Image file not found: $path');
@@ -85,6 +85,20 @@ Future<List<dynamic>> uploadImage(String path) async {
     throw Exception('Missing/invalid blocks in OCR response: $decoded');
   }
 
+  Map<String, dynamic>? extractLlm(Map<String, dynamic> root) {
+    final direct = root['llm'];
+    if (direct is Map<String, dynamic>) return direct;
+    if (direct is Map) return Map<String, dynamic>.from(direct);
+
+    final result = root['result'];
+    if (result is Map<String, dynamic>) {
+      final nested = result['llm'];
+      if (nested is Map<String, dynamic>) return nested;
+      if (nested is Map) return Map<String, dynamic>.from(nested);
+    }
+    return null;
+  }
+
   Map<String, dynamic>? normalizeBlock(dynamic block) {
     if (block == null) return null;
 
@@ -159,5 +173,8 @@ Future<List<dynamic>> uploadImage(String path) async {
     if (nb != null) normalized.add(nb);
   }
 
-  return normalized;
+  return <String, dynamic>{
+    'blocks': normalized,
+    'llm': extractLlm(decoded),
+  };
 }

@@ -155,11 +155,15 @@ class _CameraPageState extends State<CameraPage> {
     });
 
     try {
-      final blocks = await uploadImage(path);
+      final result = await uploadImage(path);
+      final dynamic rawBlocks = result['blocks'];
+      final List<dynamic> blocks =
+          rawBlocks is List ? List<dynamic>.from(rawBlocks) : const <dynamic>[];
+      final dynamic llm = result['llm'];
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => EditPage(imagePath: path, blocks: blocks),
+          builder: (_) => EditPage(imagePath: path, blocks: blocks, llm: llm),
         ),
       );
       if (!mounted) return;
