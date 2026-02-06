@@ -774,11 +774,26 @@ async def ocr_api(file: UploadFile = File(...), use_llm: bool = False):
     resp = {"blocks": blocks}
     if use_llm:
         try:
-            llm = await _openai_extract_card_from_blocks(blocks)
-            resp["llm"] = llm
-            llm_blocks = _llm_to_blocks(llm)
-            if llm_blocks:
-                resp["blocks"] = llm_blocks + blocks
+            print("/ocr use_llm: true")
         except Exception:
             pass
+
+        try:
+            llm = await _openai_extract_card_from_blocks(blocks)
+        except Exception:
+            try:
+                print("/ocr llm exception:")
+                print(traceback.format_exc())
+            except Exception:
+                pass
+            raise
+
+        resp["llm"] = llm
+        try:
+            print("/ocr llm: " + json.dumps(llm, ensure_ascii=False)[:8000])
+        except Exception:
+            pass
+        llm_blocks = _llm_to_blocks(llm)
+        if llm_blocks:
+            resp["blocks"] = llm_blocks + blocks
     return resp
