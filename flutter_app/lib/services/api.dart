@@ -85,5 +85,58 @@ Future<List<dynamic>> uploadImage(String path) async {
     throw Exception('Missing/invalid blocks in OCR response: $decoded');
   }
 
-  return blocks;
+  Map<String, dynamic>? normalizeBlock(dynamic block) {
+    if (block == null) return null;
+
+    if (block is Map) {
+      final map = Map<String, dynamic>.from(block);
+      final dynamic text =
+          map['text'] ?? map['value'] ?? map['raw'] ?? map['content'];
+      final dynamic conf = map['confidence'] ?? map['score'];
+      if (text == null) {
+        return <String, dynamic>{...map};
+      }
+      return <String, dynamic>{
+        ...map,
+        'text': text.toString(),
+        if (conf != null) 'confidence': conf,
+      };
+    }
+
+    if (block is String) {
+      final s = block.trim();
+      if (s.isEmpty) return null;
+      return <String, dynamic>{'text': s};
+    }
+
+    if (block is List && block.length >= 2) {
+      // PaddleOCR系でありがちな [points, [text, score]] を吸収
+      final second = block[1];
+      if (second is List && second.isNotEmpty) {
+        final text = second[0];
+        final conf = second.length >= 2 ? second[1] : null;
+        if (text != null) {
+          return <String, dynamic>{
+            'text': text.toString(),
+            if (conf != null) 'confidence': conf,
+            'raw': block,
+          };
+        }
+      }
+      // それ以外は文字列化して持つ
+      return <String, dynamic>{'text': block.toString(), 'raw': block};
+    }
+
+    final s = block.toString().trim();
+    if (s.isEmpty) return null;
+    return <String, dynamic>{'text': s};
+  }
+
+  final normalized = <dynamic>[];
+  for (final b in blocks) {
+    final nb = normalizeBlock(b);
+    if (nb != null) normalized.add(nb);
+  }
+
+  return normalized;
 }

@@ -13,13 +13,67 @@ import json
 import threading
 import httpx
 import traceback
+from pydantic import BaseModel, Field, ValidationError
 
 app = FastAPI()
 _ocr = None
 _ocr_lock = threading.Lock()
 
 
+class BusinessCardLLM(BaseModel):
+    name: str = ""
+    company: str = ""
+    department: str = ""
+    title: str = ""
+    phones: list[str] = Field(default_factory=list)
+    mobiles: list[str] = Field(default_factory=list)
+    faxes: list[str] = Field(default_factory=list)
+    emails: list[str] = Field(default_factory=list)
+    urls: list[str] = Field(default_factory=list)
+    postal_code: str = ""
+    address: str = ""
+    other: list[str] = Field(default_factory=list)
+
+
+def _coerce_str(v) -> str:
+    if v is None:
+        return ""
+    if isinstance(v, str):
+        return v
+    if isinstance(v, (int, float, bool)):
+        return str(v)
+    if isinstance(v, (list, tuple)):
+        parts = [str(x).strip() for x in v if x is not None]
+        parts = [p for p in parts if p]
+        return " ".join(parts)
+    if isinstance(v, dict):
+        try:
+            return json.dumps(v, ensure_ascii=False)
+        except Exception:
+            return str(v)
+    return str(v)
+
+
+def _coerce_list_str(v) -> list[str]:
+    if v is None:
+        return []
+    if isinstance(v, str):
+        s = v.strip()
+        return [s] if s else []
+    if isinstance(v, (list, tuple)):
+        out: list[str] = []
+        for x in v:
+            s = _coerce_str(x).strip()
+            if s:
+                out.append(s)
+        return out
+    if isinstance(v, (int, float, bool)):
+        return [str(v)]
+    return []
+
+
 async def _openai_extract_card_from_blocks(blocks: list[dict]) -> dict:
+
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
         raise HTTPException(
@@ -132,8 +186,9 @@ async def _openai_extract_card_from_blocks(blocks: list[dict]) -> dict:
             detail="OpenAI API returned empty content",
         )
 
+    parsed = None
     try:
-        return json.loads(content)
+        parsed = json.loads(content)
     except Exception:
         m = re.search(r"\{[\s\S]*\}", content)
         if not m:
@@ -142,12 +197,44 @@ async def _openai_extract_card_from_blocks(blocks: list[dict]) -> dict:
                 detail=f"OpenAI output is not JSON: {content[:200]}",
             )
         try:
-            return json.loads(m.group(0))
+            parsed = json.loads(m.group(0))
         except Exception:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"OpenAI output JSON parse failed: {content[:200]}",
             )
+
+    if not isinstance(parsed, dict):
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"OpenAI output JSON must be an object: got {type(parsed).__name__}",
+        )
+
+    coerced = {
+        "name": _coerce_str(parsed.get("name")),
+        "company": _coerce_str(parsed.get("company")),
+        "department": _coerce_str(parsed.get("department")),
+        "title": _coerce_str(parsed.get("title")),
+        "phones": _coerce_list_str(parsed.get("phones")),
+        "mobiles": _coerce_list_str(parsed.get("mobiles")),
+        "faxes": _coerce_list_str(parsed.get("faxes")),
+        "emails": _coerce_list_str(parsed.get("emails")),
+        "urls": _coerce_list_str(parsed.get("urls")),
+        "postal_code": _coerce_str(parsed.get("postal_code")),
+        "address": _coerce_str(parsed.get("address")),
+        "other": _coerce_list_str(parsed.get("other")),
+    }
+
+    try:
+        validated = BusinessCardLLM.model_validate(coerced)
+        return validated.model_dump()
+    except ValidationError as e:
+        try:
+            print("OpenAI output schema validation failed (fallback to defaults):")
+            print(e)
+        except Exception:
+            pass
+        return BusinessCardLLM().model_dump()
 
 
 def _get_ocr():
