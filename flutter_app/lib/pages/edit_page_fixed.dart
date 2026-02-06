@@ -322,10 +322,140 @@ class _EditPageState extends State<EditPage> {
   CardData _extractCard() {
     final data = CardData();
 
-    final llmMap = _buildLlmFromEditedBlocks() ??
-        (widget.llm is Map
-            ? Map<String, dynamic>.from(widget.llm as Map)
-            : null);
+    Map<String, dynamic>? normalizeLlm(dynamic llm) {
+      if (llm == null) return null;
+      if (llm is Map) {
+        final m = Map<String, dynamic>.from(llm);
+
+        dynamic unwrap(dynamic v) {
+          if (v == null) return null;
+          if (v is Map) {
+            final mm = Map<String, dynamic>.from(v);
+            for (final k in const [
+              'value',
+              'text',
+              'content',
+              'raw',
+              'string'
+            ]) {
+              final vv = mm[k];
+              if (vv != null) return unwrap(vv);
+            }
+          }
+          return v;
+        }
+
+        String toStr(dynamic v) {
+          final u = unwrap(v);
+          if (u == null) return '';
+          return u.toString();
+        }
+
+        List<String> toList(dynamic v) {
+          final u = unwrap(v);
+          if (u == null) return const <String>[];
+          if (u is List) {
+            return u
+                .map((e) => toStr(e).trim())
+                .where((e) => e.isNotEmpty)
+                .toList(growable: false);
+          }
+          final s = toStr(u).trim();
+          if (s.isEmpty) return const <String>[];
+          return <String>[s];
+        }
+
+        dynamic pickFirst(List<String> keys) {
+          for (final k in keys) {
+            if (m.containsKey(k)) return m[k];
+          }
+          return null;
+        }
+
+        final out = <String, dynamic>{};
+
+        out['name'] = toStr(pickFirst(const [
+          'name',
+          'full_name',
+          'person',
+          'person_name',
+          '氏名',
+          '名前',
+        ])).trim();
+
+        out['company'] = toStr(pickFirst(const [
+          'company',
+          'organization',
+          'org',
+          '会社',
+          '企業',
+        ])).trim();
+
+        out['department'] =
+            toStr(pickFirst(const ['department', 'dept', '部署'])).trim();
+
+        out['title'] = toStr(pickFirst(const [
+          'title',
+          'role',
+          'position',
+          '役職',
+        ])).trim();
+
+        out['postal_code'] = toStr(pickFirst(const [
+          'postal_code',
+          'postalCode',
+          'zip',
+          'zipcode',
+          '郵便番号',
+        ])).trim();
+
+        out['address'] = toStr(pickFirst(const ['address', '住所'])).trim();
+
+        out['phones'] = toList(pickFirst(const [
+          'phones',
+          'phone',
+          'tel',
+          'telephone',
+          '電話',
+          'TEL',
+        ]));
+
+        out['mobiles'] = toList(pickFirst(const [
+          'mobiles',
+          'mobile',
+          'cell',
+          '携帯',
+        ]));
+
+        out['faxes'] = toList(pickFirst(const ['faxes', 'fax', 'ＦＡＸ', 'FAX']));
+
+        out['emails'] = toList(pickFirst(const [
+          'emails',
+          'email',
+          'mail',
+          'メール',
+        ]));
+
+        out['urls'] = toList(pickFirst(const [
+          'urls',
+          'url',
+          'website',
+          'web',
+          'URL',
+        ]));
+
+        out.removeWhere((k, v) {
+          if (v is String) return v.trim().isEmpty;
+          if (v is List) return v.isEmpty;
+          return v == null;
+        });
+
+        return out.isEmpty ? null : out;
+      }
+      return null;
+    }
+
+    final llmMap = _buildLlmFromEditedBlocks() ?? normalizeLlm(widget.llm);
 
     bool hasLlmString(String key) {
       final v = llmMap?[key];

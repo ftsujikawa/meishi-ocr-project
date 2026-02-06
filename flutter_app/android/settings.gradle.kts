@@ -24,3 +24,5 @@ plugins {
 }
 
 include(":app")
+
+project(":app").buildFileName = "build.gradle.kts"
