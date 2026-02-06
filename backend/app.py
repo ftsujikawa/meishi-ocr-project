@@ -654,6 +654,39 @@ async def health():
     return {"status": "ok"}
 
 
+def _llm_to_blocks(llm: dict) -> list[dict]:
+    def _add(out: list[dict], label: str, value: str):
+        t = (value or "").strip()
+        if not t:
+            return
+        out.append({"text": t, "labels": [label], "source": "llm"})
+
+    out: list[dict] = []
+    if not isinstance(llm, dict):
+        return out
+
+    _add(out, "氏名", str(llm.get("name") or ""))
+    _add(out, "会社", str(llm.get("company") or ""))
+    _add(out, "部署", str(llm.get("department") or ""))
+    _add(out, "役職", str(llm.get("title") or ""))
+    _add(out, "郵便番号", str(llm.get("postal_code") or ""))
+    _add(out, "住所", str(llm.get("address") or ""))
+
+    for v in (llm.get("phones") or []):
+        _add(out, "電話", str(v))
+    for v in (llm.get("mobiles") or []):
+        _add(out, "携帯", str(v))
+    for v in (llm.get("faxes") or []):
+        _add(out, "FAX", str(v))
+    for v in (llm.get("emails") or []):
+        _add(out, "メール", str(v))
+    for v in (llm.get("urls") or []):
+        _add(out, "URL", str(v))
+    for v in (llm.get("other") or []):
+        _add(out, "その他", str(v))
+    return out
+
+
 @app.post("/ocr")
 async def ocr_api(file: UploadFile = File(...), use_llm: bool = False):
 
@@ -740,14 +773,12 @@ async def ocr_api(file: UploadFile = File(...), use_llm: bool = False):
 
     resp = {"blocks": blocks}
     if use_llm:
-        llm = await _openai_extract_card_from_blocks(blocks)
-        resp["llm"] = llm
         try:
-            print("/ocr llm: " + json.dumps(llm, ensure_ascii=False)[:8000])
-        except Exception:
-            pass
-        try:
-            print("/ocr resp(head): " + json.dumps(resp, ensure_ascii=False)[:8000])
+            llm = await _openai_extract_card_from_blocks(blocks)
+            resp["llm"] = llm
+            llm_blocks = _llm_to_blocks(llm)
+            if llm_blocks:
+                resp["blocks"] = llm_blocks + blocks
         except Exception:
             pass
     return resp

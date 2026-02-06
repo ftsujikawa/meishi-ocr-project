@@ -93,6 +93,26 @@ Future<List<dynamic>> uploadImage(String path) async {
       final dynamic text =
           map['text'] ?? map['value'] ?? map['raw'] ?? map['content'];
       final dynamic conf = map['confidence'] ?? map['score'];
+      final dynamic rawLabels =
+          map['labels'] ?? map['label'] ?? map['type'] ?? map['types'];
+
+      dynamic labels;
+      if (rawLabels != null) {
+        if (rawLabels is List) {
+          labels = rawLabels
+              .map((e) => e?.toString())
+              .where((e) => (e ?? '').trim().isNotEmpty)
+              .toList();
+        } else {
+          final s = rawLabels.toString();
+          labels = s
+              .split(',')
+              .map((e) => e.trim())
+              .where((e) => e.isNotEmpty)
+              .toList();
+        }
+      }
+
       if (text == null) {
         return <String, dynamic>{...map};
       }
@@ -100,6 +120,7 @@ Future<List<dynamic>> uploadImage(String path) async {
         ...map,
         'text': text.toString(),
         if (conf != null) 'confidence': conf,
+        if (labels != null) 'labels': labels,
       };
     }
 
