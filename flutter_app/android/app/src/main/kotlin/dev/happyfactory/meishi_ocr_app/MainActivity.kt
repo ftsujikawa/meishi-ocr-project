@@ -1,4 +1,4 @@
-package com.example.flutter_app
+package dev.happyfactory.meishi_ocr_app
 
 import io.flutter.embedding.android.FlutterActivity
 
