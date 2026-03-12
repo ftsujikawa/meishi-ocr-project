@@ -2,13 +2,19 @@ import 'package:http/http.dart' as http;
 
 import 'dart:convert';
 
-import 'dart:async';
-
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
 import 'package:http_parser/http_parser.dart';
+
+const String _ocrApiBaseUrl = String.fromEnvironment(
+  'OCR_API_BASE_URL',
+  defaultValue:
+      'https://meishi-ocr-server-880513430131.asia-northeast1.run.app',
+);
+
+const bool _useLlm = bool.fromEnvironment('USE_LLM', defaultValue: true);
 
 Future<Map<String, dynamic>> uploadImage(String path) async {
   final f = File(path);
@@ -23,14 +29,14 @@ Future<Map<String, dynamic>> uploadImage(String path) async {
     throw Exception('Image file is empty: $path');
   }
 
-  const apiBaseUrl = String.fromEnvironment(
-    'OCR_API_BASE_URL',
-    defaultValue:
-        'https://meishi-ocr-server-880513430131.asia-northeast1.run.app',
+  final base = _ocrApiBaseUrl.endsWith('/')
+      ? _ocrApiBaseUrl.substring(0, _ocrApiBaseUrl.length - 1)
+      : _ocrApiBaseUrl;
+  final uri = Uri.parse('$base/ocr').replace(
+    queryParameters: <String, String>{
+      'use_llm': _useLlm ? 'true' : 'false',
+    },
   );
-
-  const useLlm = bool.fromEnvironment('USE_LLM', defaultValue: true);
-  final uri = Uri.parse('$apiBaseUrl/ocr?use_llm=${useLlm ? 'true' : 'false'}');
 
   final lower = path.toLowerCase();
 
@@ -56,14 +62,14 @@ Future<Map<String, dynamic>> uploadImage(String path) async {
   http.StreamedResponse res;
   try {
     res = await req.send().timeout(const Duration(seconds: 60));
-  } on TimeoutException {
-    throw Exception('OCR request timed out (60s): $uri');
+  } catch (e, st) {
+    throw Exception('OCR request failed: $e (url=$uri)\n$st');
   }
 
   final body = await res.stream.bytesToString();
 
   debugPrint(
-    'OCR response: status=${res.statusCode}, body=${body.substring(0, body.length > 300 ? 300 : body.length)}',
+    'OCR response: url=$uri, status=${res.statusCode}, body=${body.substring(0, body.length > 300 ? 300 : body.length)}',
   );
 
   final status = res.statusCode;

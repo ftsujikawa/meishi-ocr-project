@@ -780,20 +780,36 @@ async def ocr_api(file: UploadFile = File(...), use_llm: bool = False):
 
         try:
             llm = await _openai_extract_card_from_blocks(blocks)
-        except Exception:
+        except HTTPException as e:
             try:
                 print("/ocr llm exception:")
                 print(traceback.format_exc())
             except Exception:
                 pass
-            raise
-
-        resp["llm"] = llm
-        try:
-            print("/ocr llm: " + json.dumps(llm, ensure_ascii=False)[:8000])
-        except Exception:
-            pass
-        llm_blocks = _llm_to_blocks(llm)
-        if llm_blocks:
-            resp["blocks"] = llm_blocks + blocks
+            resp["llm"] = None
+            resp["llm_error"] = {
+                "status_code": int(getattr(e, "status_code", 0) or 0),
+                "detail": getattr(e, "detail", None),
+                "type": type(e).__name__,
+            }
+        except Exception as e:
+            try:
+                print("/ocr llm exception:")
+                print(traceback.format_exc())
+            except Exception:
+                pass
+            resp["llm"] = None
+            resp["llm_error"] = {
+                "detail": str(e),
+                "type": type(e).__name__,
+            }
+        else:
+            resp["llm"] = llm
+            try:
+                print("/ocr llm: " + json.dumps(llm, ensure_ascii=False)[:8000])
+            except Exception:
+                pass
+            llm_blocks = _llm_to_blocks(llm)
+            if llm_blocks:
+                resp["blocks"] = llm_blocks + blocks
     return resp

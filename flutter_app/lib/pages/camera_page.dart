@@ -89,6 +89,7 @@ class _CameraPageState extends State<CameraPage> {
       });
       _initializeFuture!.catchError((e, st) {
         if (!mounted) return;
+        debugPrint('Camera initialize failed: $e\n$st');
         setState(() {
           _cameraInitError = e.toString();
         });
@@ -127,13 +128,15 @@ class _CameraPageState extends State<CameraPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Saved: ${file.path}')),
       );
-    } on CameraException catch (e) {
+    } on CameraException catch (e, st) {
       if (!mounted) return;
+      debugPrint('Camera error: ${e.description ?? e.code}\n$st');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Camera error: ${e.description ?? e.code}')),
       );
-    } catch (e) {
+    } catch (e, st) {
       if (!mounted) return;
+      debugPrint('Unexpected error: $e\n$st');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Unexpected error: $e')),
       );
@@ -174,8 +177,9 @@ class _CameraPageState extends State<CameraPage> {
       setState(() {
         _capturedImagePath = null;
       });
-    } catch (e) {
+    } catch (e, st) {
       if (!mounted) return;
+      debugPrint('OCR error: $e\n$st');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('OCR error: $e')),
       );

@@ -627,6 +627,7 @@ class _EditPageState extends State<EditPage> {
   Future<void> _addToContacts() async {
     final card = _extractCard();
     if (card.isEmpty) {
+      debugPrint('追加する情報がありません');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('追加する情報がありません')),
       );
@@ -655,6 +656,7 @@ class _EditPageState extends State<EditPage> {
     final granted = await FlutterContacts.requestPermission(readonly: false);
     if (!granted) {
       if (!mounted) return;
+      debugPrint('連絡先へのアクセスが許可されていません');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('連絡先へのアクセスが許可されていません')),
       );
@@ -712,8 +714,21 @@ class _EditPageState extends State<EditPage> {
       contact.notes = [Note(otherLines.join('\n'))];
     }
 
-    final inserted = await FlutterContacts.insertContact(contact);
+    Contact inserted;
+    try {
+      inserted = await FlutterContacts.insertContact(contact);
+    } catch (e, st) {
+      debugPrint('電話帳への追加に失敗しました: $e\n$st');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('電話帳への追加に失敗しました')),
+      );
+      return;
+    }
     if (!mounted) return;
+    debugPrint(
+      inserted.id.isNotEmpty ? '電話帳に追加しました' : '電話帳への追加に失敗しました',
+    );
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -726,6 +741,7 @@ class _EditPageState extends State<EditPage> {
   Future<void> _exportCsv() async {
     final card = _extractCard();
     if (card.isEmpty) {
+      debugPrint('出力する情報がありません');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('出力する情報がありません')),
       );
@@ -765,13 +781,32 @@ class _EditPageState extends State<EditPage> {
     final dir = await getTemporaryDirectory();
     final file = File(
         '${dir.path}/meishi_ocr_${DateTime.now().millisecondsSinceEpoch}.csv');
-    await file.writeAsString(csv, flush: true);
+    try {
+      await file.writeAsString(csv, flush: true);
+    } catch (e, st) {
+      debugPrint('CSV書き込みに失敗しました: $e\n$st');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('CSV書き込みに失敗しました')),
+      );
+      return;
+    }
 
     if (!mounted) return;
-    await Share.shareXFiles(
-      [XFile(file.path)],
-      text: '名刺OCRのCSV',
-    );
+    try {
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: '名刺OCRのCSV',
+      );
+      debugPrint('CSV共有: ${file.path}');
+    } catch (e, st) {
+      debugPrint('CSV共有に失敗しました: $e\n$st');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('CSV共有に失敗しました')),
+      );
+      return;
+    }
   }
 
   String _toCsvLine(List<String> fields) {
