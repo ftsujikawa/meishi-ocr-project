@@ -2,13 +2,15 @@ import 'package:http/http.dart' as http;
 
 import 'dart:convert';
 
+import 'dart:async';
+
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
 import 'package:http_parser/http_parser.dart';
 
-Future<List<dynamic>> uploadImage(String path) async {
+Future<Map<String, dynamic>> uploadImage(String path) async {
   final f = File(path);
 
   if (!await f.exists()) {
@@ -21,8 +23,14 @@ Future<List<dynamic>> uploadImage(String path) async {
     throw Exception('Image file is empty: $path');
   }
 
-  final uri = Uri.parse(
-      'https://meishi-ocr-server-880513430131.asia-northeast1.run.ap/ocr?use_llm=true');
+  const apiBaseUrl = String.fromEnvironment(
+    'OCR_API_BASE_URL',
+    defaultValue:
+        'https://meishi-ocr-server-880513430131.asia-northeast1.run.app',
+  );
+
+  const useLlm = bool.fromEnvironment('USE_LLM', defaultValue: true);
+  final uri = Uri.parse('$apiBaseUrl/ocr?use_llm=${useLlm ? 'true' : 'false'}');
 
   final lower = path.toLowerCase();
 
@@ -45,7 +53,12 @@ Future<List<dynamic>> uploadImage(String path) async {
     ),
   );
 
-  final res = await req.send();
+  http.StreamedResponse res;
+  try {
+    res = await req.send().timeout(const Duration(seconds: 60));
+  } on TimeoutException {
+    throw Exception('OCR request timed out (60s): $uri');
+  }
 
   final body = await res.stream.bytesToString();
 
@@ -57,7 +70,7 @@ Future<List<dynamic>> uploadImage(String path) async {
 
   if (status < 200 || status >= 300) {
     throw Exception(
-      'OCR request failed ($status): $body (path=$path, size=$size)',
+      'OCR request failed ($status): $body (url=$uri, path=$path, size=$size)',
     );
   }
 
@@ -65,6 +78,28 @@ Future<List<dynamic>> uploadImage(String path) async {
 
   if (decoded is! Map<String, dynamic>) {
     throw Exception('Unexpected OCR response: $decoded');
+  }
+
+  Map<String, dynamic>? extractLlm(Map<String, dynamic> root) {
+    final direct = root['llm'];
+    if (direct is Map<String, dynamic>) return direct;
+    if (direct is Map) return Map<String, dynamic>.from(direct);
+
+    final result = root['result'];
+    if (result is Map<String, dynamic>) {
+      final nested = result['llm'];
+      if (nested is Map<String, dynamic>) return nested;
+      if (nested is Map) return Map<String, dynamic>.from(nested);
+    }
+
+    final data = root['data'];
+    if (data is Map<String, dynamic>) {
+      final nested = data['llm'];
+      if (nested is Map<String, dynamic>) return nested;
+      if (nested is Map) return Map<String, dynamic>.from(nested);
+    }
+
+    return null;
   }
 
   List<dynamic>? extractBlocks(Map<String, dynamic> root) {
@@ -178,5 +213,8 @@ Future<List<dynamic>> uploadImage(String path) async {
     if (nb != null) normalized.add(nb);
   }
 
-  return normalized;
+  return <String, dynamic>{
+    'blocks': normalized,
+    'llm': extractLlm(decoded),
+  };
 }
